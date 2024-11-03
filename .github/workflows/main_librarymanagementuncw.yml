@@ -28,27 +28,11 @@ jobs:
           pip install -r requirements.txt
           pip install whitenoise
 
-      # Get the latest frontend build artifact
-      - name: Get Latest Frontend Build
-        id: get_frontend
-        run: |
-          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            echo "artifact_name=${{ github.event.client_payload.build_id }}" >> $GITHUB_OUTPUT
-          else
-            LATEST_BUILD=$(curl -H "Authorization: token ${{ secrets.ACTION_KEY }}" \
-              -H "Accept: application/vnd.github.v3+json" \
-              https://api.github.com/repos/ap45/library-management-frontend/actions/variables/LATEST_BUILD \
-              | jq -r '.value')
-            echo "artifact_name=$LATEST_BUILD" >> $GITHUB_OUTPUT
-          fi
-
-      # Download Frontend Build from Release
-      - name: Download Frontend Build from Release
-        run: |
-          FRONTEND_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.ACTION_KEY }}" \
-            "https://api.github.com/repos/ap45/library-management-frontend/releases/latest" \
-            | jq -r '.assets[] | select(.name | contains("frontend-build")) | .browser_download_url')
-          curl -L -o frontend-build.zip -H "Authorization: token ${{ secrets.ACTION_KEY }}" "$FRONTEND_RELEASE"
+      # Download the latest frontend build artifact
+      - name: Download Frontend Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
 
       - name: Unzip frontend build
         run: unzip frontend-build.zip -d dist/
