@@ -37,21 +37,31 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'corsheaders',
     'apps.users',
     'apps.books',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+  
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
+
+ALLOWED_HOSTS = ['*']
+
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True  # Allow requests from any origin
+CORS_ALLOW_CREDENTIALS = True 
 
 TEMPLATES = [
     {
@@ -76,9 +86,16 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+   'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'libraryassignmenttest',
+        'USER': 'admin',  # Replace with your AWS RDS username
+        'PASSWORD': 'uncwtest12345',  # Replace with your AWS RDS password
+        'HOST': 'uncwtestdb1.cx26meucargn.us-east-2.rds.amazonaws.com',  # Replace with your AWS RDS endpoint
+        'PORT': '3306',
+       'OPTIONS': {
+            'auth_plugin': 'caching_sha2_password',
+        }
     }
 }
 
