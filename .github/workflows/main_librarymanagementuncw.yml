@@ -28,14 +28,31 @@ jobs:
           pip install -r requirements.txt
           pip install whitenoise
 
-      # Download the latest frontend build artifact
-      - name: Download Frontend Build Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-build
+      # Get the latest frontend build artifact
+      - name: Download Latest Frontend Build Artifact
+        run: |
+          # Fetch artifacts from the frontend repository
+          ARTIFACTS=$(curl -L -H "Authorization: token ${{ secrets.ACTION_KEY }}" \
+            https://api.github.com/repos/ap45/library-management-frontend/actions/artifacts)
 
-      - name: Unzip frontend build
-        run: unzip frontend-build.zip -d dist/
+          # Extract the latest artifact based on created_at timestamp
+          LATEST_ARTIFACT=$(echo "$ARTIFACTS" | jq -r '.artifacts | max_by(.created_at)')
+
+          # Extract the download URL for the latest artifact
+          DOWNLOAD_URL=$(echo "$LATEST_ARTIFACT" | jq -r '.archive_download_url')
+
+          # Check if the download URL was extracted successfully
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "Failed to extract download URL for the latest frontend build artifact."
+            exit 1
+          fi
+
+          # Download the latest frontend artifact
+          curl -L -H "Authorization: token ${{ secrets.ACTION_KEY }}" -o frontend.zip "$DOWNLOAD_URL"
+
+      - name: Unzip frontend artifact
+        run: |
+          unzip frontend.zip -d dist/
 
       - name: Collect static files
         run: |
@@ -85,4 +102,4 @@ jobs:
         with:
           app-name: 'librarymanagementuncw'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_C654E2CC2B9448D9843D462823951799 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFIL}}  # Ensure this is set correctly
