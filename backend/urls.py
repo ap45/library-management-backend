@@ -16,7 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-
+from apps.books.views import check_out_item
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # path('api/check_out/<int:customer_id>/<int:item_id>/', check_out_item, name='check_out_item'),
+    path('api/check_out/<int:customer_id>/', check_out_item, name='check_out_item'),  # Remove <int:item_id>
+
 ]
