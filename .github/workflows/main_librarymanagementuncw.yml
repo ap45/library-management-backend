@@ -42,20 +42,16 @@ jobs:
             echo "artifact_name=$LATEST_BUILD" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download frontend build
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ steps.get_frontend.outputs.artifact_name }}
-          path: dist/
-          repository: ap45/library-management-frontend
-          github-token: ${{ secrets.ACTION_KEY }}
-
-      - name: Verify frontend files
+      # Download Frontend Build from Release
+      - name: Download Frontend Build from Release
         run: |
-          if [ ! -d "dist" ] || [ -z "$(ls -A dist)" ]; then
-            echo "Frontend build files are missing!"
-            exit 1
-          fi
+          FRONTEND_RELEASE=$(curl -s -H "Authorization: token ${{ secrets.ACTION_KEY }}" \
+            "https://api.github.com/repos/ap45/library-management-frontend/releases/latest" \
+            | jq -r '.assets[] | select(.name | contains("frontend-build")) | .browser_download_url')
+          curl -L -o frontend-build.zip -H "Authorization: token ${{ secrets.ACTION_KEY }}" "$FRONTEND_RELEASE"
+
+      - name: Unzip frontend build
+        run: unzip frontend-build.zip -d dist/
 
       - name: Collect static files
         run: |
