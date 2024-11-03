@@ -1,23 +1,19 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
-
 name: Build and deploy Python app to Azure Web App - librarymanagementuncw
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
+  repository_dispatch:
+    types: [trigger_backend]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python version
+      - name: Set up Python
         uses: actions/setup-python@v1
         with:
           python-version: '3.12'
@@ -28,12 +24,57 @@ jobs:
           source venv/bin/activate
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          pip install whitenoise
 
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+      # Get the latest frontend build artifact
+      - name: Get Latest Frontend Build
+        id: get_frontend
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            echo "artifact_name=${{ github.event.client_payload.build_id }}" >> $GITHUB_OUTPUT
+          else
+            LATEST_BUILD=$(curl -H "Authorization: token ${{ secrets.ACTION_KEY }}" \
+              -H "Accept: application/vnd.github.v3+json" \
+              https://api.github.com/repos/ap45/library-management-frontend/actions/variables/LATEST_BUILD \
+              | jq -r '.value')
+            echo "artifact_name=$LATEST_BUILD" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download frontend build
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.get_frontend.outputs.artifact_name }}
+          path: dist/
+          repository: ap45/library-management-frontend
+          github-token: ${{ secrets.ACTION_KEY }}
+
+      - name: Verify frontend files
+        run: |
+          if [ ! -d "dist" ] || [ -z "$(ls -A dist)" ]; then
+            echo "Frontend build files are missing!"
+            exit 1
+          fi
+
+      - name: Collect static files
+        run: |
+          source venv/bin/activate
+          python manage.py collectstatic --noinput
+        env:
+          DJANGO_SECRET_KEY: ${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_DEBUG: 'False'
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+
+      # Create deployment package
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: |
+          zip release.zip ./* -r -x "venv/*"
 
+      # Upload the deployment package
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v3
         with:
