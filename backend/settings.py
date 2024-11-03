@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,12 +21,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-xkol@@*j@r72mqzk(1rr20wu@0)zop1%13#5v2u0z=b3n@(nt2'
+# SECRET_KEY = 'django-insecure-xkol@@*j@r72mqzk(1rr20wu@0)zop1%13#5v2u0z=b3n@(nt2'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-xkol@@*j@r72mqzk(1rr20wu@0)zop1%13#5v2u0z=b3n@(nt2')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+
+
+
 
 
 # Application definition
@@ -37,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'whitenoise.runserver_nostatic'
     'rest_framework',
     'corsheaders',
     'apps.users',
@@ -45,11 +50,11 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-  
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -59,6 +64,15 @@ ROOT_URLCONF = 'backend.urls'
 
 ALLOWED_HOSTS = ['*']
 
+
+STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'dist'), 
+      os.path.join(BASE_DIR, 'static'), # React build files
+]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # Allow requests from any origin
 CORS_ALLOW_CREDENTIALS = True 
@@ -88,12 +102,12 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
    'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'libraryassignmenttest',
-        'USER': 'admin',  # Replace with your AWS RDS username
-        'PASSWORD': 'uncwtest12345',  # Replace with your AWS RDS password
-        'HOST': 'uncwtestdb1.cx26meucargn.us-east-2.rds.amazonaws.com',  # Replace with your AWS RDS endpoint
-        'PORT': '3306',
-       'OPTIONS': {
+        'NAME': os.environ.get('DB_NAME', 'libraryassignmenttest'),
+        'USER': os.environ.get('DB_USER', 'admin'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'uncwtest12345'),
+        'HOST': os.environ.get('DB_HOST', 'uncwtestdb1.cx26meucargn.us-east-2.rds.amazonaws.com'),
+        'PORT': os.environ.get('DB_PORT', '3306'),
+        'OPTIONS': {
             'auth_plugin': 'caching_sha2_password',
         }
     }
