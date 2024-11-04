@@ -12,3 +12,4 @@ venv/
 /media
 /dist
 /staticfiles
+/backend/__pycache__/
