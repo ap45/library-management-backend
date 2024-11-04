@@ -69,7 +69,7 @@ STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'dist'), 
-      os.path.join(BASE_DIR, 'static'), # React build files
+    os.path.join(BASE_DIR, 'static'), # React build files
 ]
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -78,10 +78,11 @@ CORS_ALLOW_ALL_ORIGINS = True  # Allow requests from any origin
 CORS_ALLOW_CREDENTIALS = True 
 
 TEMPLATES = [
-    {
+     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
+        'DIRS': [os.path.join(BASE_DIR, 'dist')], 
+        # 'APP_DIRS': True,
+        'APP_DIRS': False,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
