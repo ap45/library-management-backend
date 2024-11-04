@@ -11,5 +11,4 @@ venv/
 *.sqlite3
 /media
 /dist
-/staticfiles
 /backend/__pycache__/
