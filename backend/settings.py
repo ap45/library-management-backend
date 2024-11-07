@@ -103,10 +103,10 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
    'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'libraryassignmenttest'),
-        'USER': os.environ.get('DB_USER', 'admin'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'uncwtest12345'),
-        'HOST': os.environ.get('DB_HOST', 'uncwtestdb1.cx26meucargn.us-east-2.rds.amazonaws.com'),
+        'NAME': os.environ.get('DB_NAME', 'library_db'),
+        'USER': os.environ.get('DB_USER', 'main_login'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'AdminPW!'),
+        'HOST': os.environ.get('DB_HOST', 'wpl.mysql.database.azure.com'),
         'PORT': os.environ.get('DB_PORT', '3306'),
         'OPTIONS': {
             'auth_plugin': 'caching_sha2_password',
