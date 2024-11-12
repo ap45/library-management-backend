@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 class Item(models.Model):
     class Meta:
-        db_table = 'Item'
+        db_table = 'item'
         
     item_id = models.AutoField(primary_key=True, db_column='Item_ID')
     title = models.CharField(max_length=32, db_column='Title')
@@ -18,7 +18,7 @@ class Item(models.Model):
 
 class Customer(models.Model):
     class Meta:
-        db_table = 'Customer'
+        db_table = 'customer'
         
     customer_id = models.AutoField(primary_key=True, db_column='Customer_ID')
     customer_fn = models.CharField(max_length=30, db_column='CustomerFN')
@@ -35,7 +35,7 @@ class Customer(models.Model):
 
 class CheckOut(models.Model):
     class Meta:
-        db_table = 'Check_Out'
+        db_table = 'check_out'
         
     check_out_id = models.AutoField(primary_key=True, db_column='Check_Out_ID')
     checkout_date = models.DateField(db_column='Checkout_Date')
@@ -45,7 +45,7 @@ class CheckOut(models.Model):
 
 class ItemIsCheckedOut(models.Model):
     class Meta:
-        db_table = 'Item_Is_Checked_Out'
+        db_table = 'item_is_checked_out'
         
     item = models.ForeignKey(Item, on_delete=models.CASCADE, db_column='Item_ID')
     check_out = models.ForeignKey(CheckOut, on_delete=models.CASCADE, db_column='Check_Out_ID')

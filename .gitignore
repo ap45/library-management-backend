@@ -1,5 +1,5 @@
 # Python
-__pycache__/
+
 *.py[cod]
 *.pyo
 *.pyd
@@ -11,4 +11,14 @@ venv/
 *.sqlite3
 /media
 /dist
-/backend/__pycache__/
+
+# Ignore all __pycache__ directories
+__pycache__/
+
+# Ignore pycache in specific apps or subdirectories (if any)
+library_management_backend/backend/__pycache__/
+library_management_backend/users/__pycache__/
+library_management_backend/books/__pycache__/
+
+.env
+apps/books/__pycache__/apps.cpython-313.pyc

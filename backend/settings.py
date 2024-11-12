@@ -110,6 +110,7 @@ DATABASES = {
         'PORT': os.environ.get('DB_PORT', '3306'),
         'OPTIONS': {
             'auth_plugin': 'caching_sha2_password',
+            'ssl': {'ssl_disabled': True}, 
         }
     }
 }
