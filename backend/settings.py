@@ -29,9 +29,6 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 
 
-
-
-
 # Application definition
 
 INSTALLED_APPS = [

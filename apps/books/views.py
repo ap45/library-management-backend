@@ -1,96 +1,108 @@
-# Update apps/books/views.py
-
-from rest_framework import status
+from datetime import datetime, timedelta
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.db import transaction
-from datetime import datetime, timedelta
-from .models import Item, Customer, CheckOut, ItemIsCheckedOut
+from apps.books.models import Fines, LibraryCard, ItemIsCheckedOut, Item, Customer, CheckOut
+from apps.books.serializers import FineSerializer, LibraryCardSerializer, ItemCheckoutSerializer
+
+@api_view(['GET'])
+def check_fines(request, customer_id):
+    try:
+        fines = Fines.objects.filter(customer_id=customer_id, paid=False)
+        has_fines = fines.exists()
+        return Response({
+            'status': 'success',
+            'has_fines': has_fines,
+            'fines': FineSerializer(fines, many=True).data,
+            'message': 'Outstanding fines found. Please pay to proceed.' if has_fines else 'No outstanding fines.'
+        })
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
+
+@api_view(['POST'])
+def pay_fines(request, customer_id):
+    try:
+        unpaid_fines = Fines.objects.filter(customer_id=customer_id, paid=False)
+        if unpaid_fines.exists():
+            for fine in unpaid_fines:
+                fine.mark_as_paid()
+            return Response({'status': 'success', 'message': 'Fines paid successfully.'})
+        return Response({'status': 'success', 'message': 'No unpaid fines found.'})
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
+
+@api_view(['GET'])
+def check_library_card(request, customer_id):
+    try:
+        card = LibraryCard.objects.filter(customer_id=customer_id).first()
+        if not card:
+            return Response({
+                'status': 'error',
+                'valid_card': False,
+                'message': 'No library card found for this customer ID.'
+            }, status=404)
+        elif not card.is_valid():
+            return Response({
+                'status': 'error',
+                'valid_card': False,
+                'message': 'Library card expired. Please renew.'
+            }, status=400)
+        else:
+            return Response({
+                'status': 'success',
+                'valid_card': True,
+                'message': 'Library card is valid.'
+            })
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
+
+@api_view(['POST'])
+def renew_library_card(request, customer_id):
+    try:
+        card, created = LibraryCard.objects.get_or_create(customer_id=customer_id)
+        card.renew()
+        return Response({'status': 'success', 'message': 'Library card renewed successfully.'})
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
 
 @api_view(['POST'])
 def check_out_item(request, customer_id):
     try:
-        item_ids = request.data.get('item_ids', [])
-        if not item_ids:
-            return Response(
-                {"message": "No item IDs provided."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        items_to_checkout = request.data.get('item_ids', [])
+        card = LibraryCard.objects.filter(customer_id=customer_id).first()
 
-        with transaction.atomic():
-            # Get customer and verify fines
-            customer = Customer.objects.get(pk=customer_id)
-            if customer.outstanding_fines > 0:
-                return Response(
-                    {"message": "Cannot checkout. Customer has outstanding fines."},
-                    status=status.HTTP_400_BAD_REQUEST
+        if not card or not card.is_valid():
+            return Response({'status': 'error', 'message': 'Library card expired. Please renew.'}, status=400)
+
+        unpaid_fines = Fines.objects.filter(customer_id=customer_id, paid=False)
+        if unpaid_fines.exists():
+            return Response({'status': 'error', 'message': 'Outstanding fines. Please pay before checkout.'}, status=400)
+
+        current_checkouts = ItemIsCheckedOut.objects.filter(check_out__customer_id=customer_id, check_out__returned=False).count()
+        if current_checkouts + len(items_to_checkout) > 20:
+            return Response({'status': 'error', 'message': 'Checkout limit exceeded. Max 20 items allowed.'}, status=400)
+
+        already_checked_out_items = []
+        due_dates = []
+
+        for item_id in items_to_checkout:
+            if ItemIsCheckedOut.objects.filter(item_id=item_id, check_out__returned=False).exists():
+                already_checked_out_items.append(item_id)
+            else:
+                check_out_record = CheckOut.objects.create(
+                    customer_id=customer_id,
+                    checkout_date=datetime.today().date(),
+                    due_date=datetime.today().date() + timedelta(days=14)
                 )
+                ItemIsCheckedOut.objects.create(item_id=item_id, check_out=check_out_record)
+                due_dates.append(check_out_record.due_date)
 
-            # Check number of items currently checked out
-            current_checkouts = CheckOut.objects.filter(
-                customer=customer,
-                returned=False
-            ).count()
-            
-            if current_checkouts + len(item_ids) > 20:  # Check total items after including new checkouts
-                return Response(
-                    {"message": "Cannot checkout. Maximum items (20) already checked out."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            due_dates = []  # Store due dates for the response
-            messages = []  # Store messages for any failed checkouts
-            
-            for item_id in item_ids:
-                # Get item and verify it exists
-                try:
-                    item = Item.objects.get(pk=item_id)
-                except Item.DoesNotExist:
-                    messages.append(f"Item with ID {item_id} not found.")
-                    continue  # Skip this item
-
-                # Check if item is already checked out
-                if ItemIsCheckedOut.objects.filter(
-                    item=item,
-                    check_out__returned=False
-                ).exists():
-                    messages.append(f"Item with ID {item_id} is already checked out.")
-                    continue  # Skip this item
-
-                # Create checkout record
-                checkout = CheckOut.objects.create(
-                    checkout_date=datetime.now().date(),
-                    due_date=datetime.now().date() + timedelta(days=20),
-                    returned=False,
-                    customer=customer
-                )
-
-                # Create item checkout relationship
-                ItemIsCheckedOut.objects.create(
-                    item=item,
-                    check_out=checkout
-                )
-
-                due_dates.append(checkout.due_date)  # Store due date
-
-            if messages:
-                return Response({
-                    "message": "Some items could not be checked out.",
-                    "details": messages
-                }, status=status.HTTP_207_MULTI_STATUS)  # Return multi-status
-
+        if already_checked_out_items:
             return Response({
-                "message": "Items checked out successfully.",
-                "due_dates": due_dates
-            }, status=status.HTTP_200_OK)
+                'status': 'error',
+                'message': f"The following items are already checked out: {', '.join(already_checked_out_items)}",
+                'already_checked_out': already_checked_out_items
+            }, status=400)
 
-    except Customer.DoesNotExist:
-        return Response(
-            {"message": "Customer not found."},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({'status': 'success', 'message': 'Checkout successful.', 'due_dates': due_dates})
     except Exception as e:
-        return Response(
-            {"message": f"Error checking out items: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        return Response({'status': 'error', 'message': str(e)}, status=500)
