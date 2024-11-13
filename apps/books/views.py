@@ -13,7 +13,7 @@ def check_fines(request, customer_id):
             'status': 'success',
             'has_fines': has_fines,
             'fines': FineSerializer(fines, many=True).data,
-            'message': 'Outstanding fines found. Please pay to proceed.' if has_fines else 'No outstanding fines.'
+            'message': 'Outstanding fines found. Please pay to proceed.' if has_fines else 'No outstanding fines. You can proceed to Checkout.'
         })
     except Exception as e:
         return Response({'status': 'error', 'message': str(e)}, status=500)
