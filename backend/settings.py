@@ -99,15 +99,15 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
    'default': {
-        'ENGINE': 'django.db.backends.mysql',
+       'ENGINE': 'django.db.backends.mysql',
         'NAME': os.environ.get('DB_NAME', 'library_db').strip(),
         'USER': os.environ.get('DB_USER', 'main_login').strip(),
         'PASSWORD': os.environ.get('DB_PASSWORD', 'AdminPW!').strip(),
         'HOST': os.environ.get('DB_HOST', 'wpl.mysql.database.azure.com').strip(),
-        'PORT': os.environ.get('DB_PORT', '3306'),
+        'PORT': os.environ.get('DB_PORT', 3306),
         'OPTIONS': {
             'auth_plugin': 'caching_sha2_password',
-            'ssl': {'ssl_disabled': True}, 
+           
         }
     }
 }

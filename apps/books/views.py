@@ -70,19 +70,22 @@ def check_out_item(request, customer_id):
         items_to_checkout = request.data.get('item_ids', [])
         card = LibraryCard.objects.filter(customer_id=customer_id).first()
 
+        # Check if library card is valid
         if not card or not card.is_valid():
             return Response({'status': 'error', 'message': 'Library card expired. Please renew.'}, status=400)
 
+        # Check for unpaid fines
         unpaid_fines = Fines.objects.filter(customer_id=customer_id, paid=False)
         if unpaid_fines.exists():
             return Response({'status': 'error', 'message': 'Outstanding fines. Please pay before checkout.'}, status=400)
 
+        # Check for already checked-out items
         current_checkouts = ItemIsCheckedOut.objects.filter(check_out__customer_id=customer_id, check_out__returned=False).count()
         if current_checkouts + len(items_to_checkout) > 20:
             return Response({'status': 'error', 'message': 'Checkout limit exceeded. Max 20 items allowed.'}, status=400)
 
         already_checked_out_items = []
-        due_dates = []
+        checked_out_items = []
 
         for item_id in items_to_checkout:
             if ItemIsCheckedOut.objects.filter(item_id=item_id, check_out__returned=False).exists():
@@ -94,7 +97,10 @@ def check_out_item(request, customer_id):
                     due_date=datetime.today().date() + timedelta(days=14)
                 )
                 ItemIsCheckedOut.objects.create(item_id=item_id, check_out=check_out_record)
-                due_dates.append(check_out_record.due_date)
+                checked_out_items.append({
+                    'item_id': item_id,
+                    'due_date': check_out_record.due_date
+                })
 
         if already_checked_out_items:
             return Response({
@@ -103,6 +109,10 @@ def check_out_item(request, customer_id):
                 'already_checked_out': already_checked_out_items
             }, status=400)
 
-        return Response({'status': 'success', 'message': 'Checkout successful.', 'due_dates': due_dates})
+        return Response({
+            'status': 'success',
+            'message': 'Checkout successful.',
+            'checked_out_items': checked_out_items
+        })
     except Exception as e:
         return Response({'status': 'error', 'message': str(e)}, status=500)
