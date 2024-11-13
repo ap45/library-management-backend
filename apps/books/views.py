@@ -5,32 +5,6 @@ from apps.books.models import Fines, LibraryCard, ItemIsCheckedOut, Item, Custom
 from apps.books.serializers import FineSerializer, LibraryCardSerializer, ItemCheckoutSerializer
 
 @api_view(['GET'])
-def check_fines(request, customer_id):
-    try:
-        fines = Fines.objects.filter(customer_id=customer_id, paid=False)
-        has_fines = fines.exists()
-        return Response({
-            'status': 'success',
-            'has_fines': has_fines,
-            'fines': FineSerializer(fines, many=True).data,
-            'message': 'Outstanding fines found. Please pay to proceed.' if has_fines else 'No outstanding fines. You can proceed to Checkout.'
-        })
-    except Exception as e:
-        return Response({'status': 'error', 'message': str(e)}, status=500)
-
-@api_view(['POST'])
-def pay_fines(request, customer_id):
-    try:
-        unpaid_fines = Fines.objects.filter(customer_id=customer_id, paid=False)
-        if unpaid_fines.exists():
-            for fine in unpaid_fines:
-                fine.mark_as_paid()
-            return Response({'status': 'success', 'message': 'Fines paid successfully.'})
-        return Response({'status': 'success', 'message': 'No unpaid fines found.'})
-    except Exception as e:
-        return Response({'status': 'error', 'message': str(e)}, status=500)
-
-@api_view(['GET'])
 def check_library_card(request, customer_id):
     try:
         card = LibraryCard.objects.filter(customer_id=customer_id).first()
@@ -44,13 +18,13 @@ def check_library_card(request, customer_id):
             return Response({
                 'status': 'error',
                 'valid_card': False,
-                'message': 'Library card expired. Please renew.'
+                'message': 'Library card expired. Please renew to proceed with checkout.'
             }, status=400)
         else:
             return Response({
                 'status': 'success',
                 'valid_card': True,
-                'message': 'Library card is valid.'
+                'message': 'Library card is valid. You may proceed to enter item IDs for checkout.'
             })
     except Exception as e:
         return Response({'status': 'error', 'message': str(e)}, status=500)
@@ -64,6 +38,34 @@ def renew_library_card(request, customer_id):
     except Exception as e:
         return Response({'status': 'error', 'message': str(e)}, status=500)
 
+@api_view(['GET'])
+def check_fines(request, customer_id):
+    try:
+        fines = Fines.objects.filter(customer_id=customer_id, paid=False)
+        has_fines = fines.exists()
+        total_fines = sum(fine.amount for fine in fines)
+        return Response({
+            'status': 'success',
+            'has_fines': has_fines,
+            'total_fines': total_fines,
+            'message': f'Outstanding fines: ${total_fines}' if has_fines else 'No outstanding fines. You can proceed to checkout.'
+        })
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
+
+@api_view(['POST'])
+def pay_fines(request, customer_id):
+    try:
+        unpaid_fines = Fines.objects.filter(customer_id=customer_id, paid=False)
+        if unpaid_fines.exists():
+            for fine in unpaid_fines:
+                fine.paid = True
+                fine.save()
+            return Response({'status': 'success', 'message': 'Fines paid successfully. You may proceed with checkout.'})
+        return Response({'status': 'success', 'message': 'No unpaid fines found.'})
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
+
 @api_view(['POST'])
 def check_out_item(request, customer_id):
     try:
@@ -74,16 +76,12 @@ def check_out_item(request, customer_id):
         if not card or not card.is_valid():
             return Response({'status': 'error', 'message': 'Library card expired. Please renew.'}, status=400)
 
-        # Check for unpaid fines
+        # Ensure all fines are cleared before checkout
         unpaid_fines = Fines.objects.filter(customer_id=customer_id, paid=False)
         if unpaid_fines.exists():
             return Response({'status': 'error', 'message': 'Outstanding fines. Please pay before checkout.'}, status=400)
 
-        # Check for already checked-out items
-        current_checkouts = ItemIsCheckedOut.objects.filter(check_out__customer_id=customer_id, check_out__returned=False).count()
-        if current_checkouts + len(items_to_checkout) > 20:
-            return Response({'status': 'error', 'message': 'Checkout limit exceeded. Max 20 items allowed.'}, status=400)
-
+        # Process checkout for items not already checked out
         already_checked_out_items = []
         checked_out_items = []
 
@@ -105,7 +103,7 @@ def check_out_item(request, customer_id):
         if already_checked_out_items:
             return Response({
                 'status': 'error',
-                'message': f"The following items are already checked out: {', '.join(already_checked_out_items)}",
+                'message': f"The following items are already checked out: {', '.join(str(i) for i in already_checked_out_items)}",
                 'already_checked_out': already_checked_out_items
             }, status=400)
 
