@@ -16,6 +16,8 @@ Including another URLconf
 """
 
 from apps.books.views import check_out_item
+from apps.users.views import manage_fines
+
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.http import HttpResponse
@@ -26,7 +28,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # path('api/check_out/<int:customer_id>/<int:item_id>/', check_out_item, name='check_out_item'),
     path('api/check_out/<int:customer_id>/', check_out_item, name='check_out_item'),  # Remove <int:item_id>
-
+    path('manage-fines/<int:customer_id>/', manage_fines, name='manage_fines'),
 ]
 urlpatterns += [re_path(r'^.*$', TemplateView.as_view(template_name='index.html'))]
 
