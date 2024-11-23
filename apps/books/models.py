@@ -64,6 +64,8 @@ class CheckOut(models.Model):
     due_date = models.DateField(db_column='Due_Date')
     returned = models.BooleanField(default=False, db_column='Returned')
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, db_column='Customer_ID')
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, db_column='Item_ID', null=True)  # New field
+
 
     class Meta:
         db_table = 'check_out'
@@ -74,3 +76,47 @@ class ItemIsCheckedOut(models.Model):
 
     class Meta:
         db_table = 'item_is_checked_out'
+
+
+
+class CheckIn(models.Model):
+    check_in_id = models.AutoField(primary_key=True, db_column='Check_In_ID')
+    return_date = models.DateField(null=True, db_column='Return_Date')
+    late_fees = models.FloatField(default=0.00, db_column='Late_Fees')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, db_column='Customer_ID')
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, db_column='Item_ID')
+
+    class Meta:
+        db_table = 'check_in'
+
+    def calculate_late_fees(self, due_date):
+        if self.return_date and due_date and self.return_date > due_date:
+            late_days = (self.return_date - due_date).days
+            self.late_fees = late_days * 1.5  # Assuming 1.5 is the late fee per day
+            self.save()
+
+class Reservation(models.Model):
+    reservation_id = models.AutoField(primary_key=True, db_column='Reservation_ID')
+    reservation_date = models.DateField(null=True, db_column='Reservation_Date')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, db_column='Customer_ID')
+    item = models.ForeignKey(Item, on_delete=models.CASCADE, db_column='Item_ID')
+    status = models.CharField(max_length=20, choices=[('Reserved', 'Reserved'), ('Cancelled', 'Cancelled'), ('PickedUp', 'PickedUp'), ('FullFilled', 'Fullfilled')], default='Reserved')
+    is_active = models.BooleanField(default=True, db_column='Is_Active')
+    queue_position = models.IntegerField(default=0, db_column='Queue_Position')
+    
+    notification_status = models.CharField(
+        max_length=20,
+        choices=[('Pending', 'Pending'), ('Notified', 'Notified'), ('Expired', 'Expired')],
+        default='Pending',
+        db_column='Notification_Status'
+    )
+    notified_on = models.DateField(null=True, db_column='Notified_On')
+    notification_deadline = models.DateField(null=True, db_column='Notification_Deadline')
+
+    class Meta:
+        db_table = 'reservation'
+
+    def cancel_reservation(self):
+        self.status = 'Cancelled'
+        self.is_active = False
+        self.save()

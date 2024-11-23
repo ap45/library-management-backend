@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.books.models import Item, Customer, Fines, LibraryCard, ItemIsCheckedOut
+from apps.books.models import Item, Customer, Fines, LibraryCard, CheckOut,CheckIn,Reservation
 
 class ItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,5 +23,18 @@ class LibraryCardSerializer(serializers.ModelSerializer):
         fields = ['card_id', 'issue_date', 'expire_date', 'customer_id']
 class ItemCheckoutSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ItemIsCheckedOut
+        model = CheckOut
         fields = ['item', 'checkout_date', 'due_date', 'returned', 'customer']
+
+class CheckInSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CheckIn
+        fields = ['check_in_id', 'return_date', 'late_fees', 'customer', 'item']
+
+class ReservationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reservation
+        fields = [
+            'reservation_id', 'reservation_date', 'customer', 'item', 'status',
+            'queue_position', 'is_active', 'notification_status', 'notified_on', 'notification_deadline'
+        ]
