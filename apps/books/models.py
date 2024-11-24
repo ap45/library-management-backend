@@ -68,6 +68,10 @@ class CheckOut(models.Model):
     class Meta:
         db_table = 'check_out'
 
+    def renew_book(self):
+        self.due_date += timedelta(days=14)
+        self.save()
+
 class ItemIsCheckedOut(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE, db_column='Item_ID')
     check_out = models.ForeignKey(CheckOut, on_delete=models.CASCADE, db_column='Check_Out_ID')

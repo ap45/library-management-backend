@@ -4,6 +4,58 @@ from rest_framework.response import Response
 from apps.books.models import Fines, LibraryCard, ItemIsCheckedOut, Item, Customer, CheckOut
 from apps.books.serializers import FineSerializer, LibraryCardSerializer, ItemCheckoutSerializer
 
+@api_view(['POST'])
+def renew_item(request, customer_id, item_id):
+    try:
+        checkout = CheckOut.objects.filter(customer_id=customer_id, itemischeckedout__item_id=item_id, returned=False).first()
+
+        card = LibraryCard.objects.filter(customer_id=customer_id)
+
+        if not checkout:
+            return Response({
+                'status': 'error',
+                'message': 'This item is not currently checked out by this customer.'
+            }, status=404)
+        
+        if checkout.renewal_count >= 2:
+            return Response({
+                'status': 'error',
+                'message': 'This item has already been renewed the maximum number of times.'
+            }, status=400)
+        
+        if Reservation.objects.filter(item_id=item_id, status='Reserved').exists():
+            return Response({
+                'status': 'error',
+                'message': 'This item is reserved by another customer and cannot be renewed.'
+            }, status=400)
+
+        if not card.is_valid():
+            return Response({
+                'status': 'error',
+                'valid_card': False,
+                'message': 'Library card expired. Please renew your card before extending the loan period.'
+            }, status=400)
+        
+        if datetime.now().date() > checkout.due_date:
+            return Response({
+                'status': 'error',
+                'message': 'This book cannot be renewed as it is overdue. Please return the book and pay any fines first.'
+            }, status=400)
+        
+        checkout.renew_book()
+
+        #checkout.renewal_count += 1
+        #checkout.save()
+
+        return Response({
+            'status': 'success',
+            'message': f"Book with ID {item_id} has been successfully renewed.",
+            'new_due_date': checkout.due_date
+        }, status=200)
+
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
+    
 @api_view(['GET'])
 def check_library_card(request, customer_id):
     try:
