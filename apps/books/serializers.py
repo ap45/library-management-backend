@@ -24,7 +24,7 @@ class LibraryCardSerializer(serializers.ModelSerializer):
 class ItemCheckoutSerializer(serializers.ModelSerializer):
     class Meta:
         model = CheckOut
-        fields = ['item', 'checkout_date', 'due_date', 'returned', 'customer']
+        fields = ['item', 'checkout_date', 'due_date', 'returned', 'customer', 'renewal_count']
 
 class CheckInSerializer(serializers.ModelSerializer):
     class Meta:
