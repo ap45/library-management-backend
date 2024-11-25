@@ -66,9 +66,17 @@ class CheckOut(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, db_column='Customer_ID')
     item = models.ForeignKey(Item, on_delete=models.CASCADE, db_column='Item_ID', null=True)  # New field
 
+    renewal_count = models.IntegerField(default=0, db_column='Renewal_Count')  # New field
 
     class Meta:
         db_table = 'check_out'
+
+    def renew(self):
+        if self.renewal_count >= 3:
+            raise ValueError("This book has reached the maximum renewal limit.")
+        self.due_date += timedelta(days=14)  # Extend due date by 14 days
+        self.renewal_count += 1
+        self.save()
 
 class ItemIsCheckedOut(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE, db_column='Item_ID')

@@ -6,6 +6,8 @@ from apps.books.serializers import FineSerializer, LibraryCardSerializer, ItemCh
 from django.db.models import Max
 from django.http import JsonResponse
 from rest_framework import status
+from datetime import date, timedelta
+
 # Utility function to get the next Check_Out_ID
 def get_next_check_out_id():
     max_id = CheckOut.objects.aggregate(Max('check_out_id'))['check_out_id__max']
@@ -14,6 +16,15 @@ def get_next_check_out_id():
 @api_view(['GET'])
 def check_library_card(request, customer_id):
     try:
+        # Validate customer_id
+        if not isinstance(customer_id, int):
+            return Response({
+                'status': 'error',
+                'valid_card': False,
+                'message': 'Invalid customer ID format. Please provide a numeric ID.'
+            }, status=400)
+
+        # Check if the card exists
         card = LibraryCard.objects.filter(customer_id=customer_id).first()
         if not card:
             return Response({
@@ -21,29 +32,57 @@ def check_library_card(request, customer_id):
                 'valid_card': False,
                 'message': 'No library card found for this customer ID.'
             }, status=404)
-        elif not card.is_valid():
-            return Response({
-                'status': 'error',
-                'valid_card': False,
-                'message': 'Library card expired. Please renew to proceed with checkout.'
-            }, status=400)
-        else:
+
+        # Check card validity
+        if not card.is_valid():
             return Response({
                 'status': 'success',
-                'valid_card': True,
-                'message': 'Library card is valid. You may proceed.'
-            })
+                'valid_card': False,
+                'card_expired': True,
+                'message': 'Library card expired. Please renew it to continue.'
+            }, status=200)
+
+        return Response({
+            'status': 'success',
+            'valid_card': True,
+            'message': 'Library card is valid. You may proceed.'
+        })
     except Exception as e:
-        return Response({'status': 'error', 'message': str(e)}, status=500)
+        return Response({
+            'status': 'error',
+            'message': f"An unexpected error occurred: {str(e)}"
+        }, status=500)
 
 @api_view(['POST'])
 def renew_library_card(request, customer_id):
     try:
-        card, created = LibraryCard.objects.get_or_create(customer_id=customer_id)
+        # Validate customer_id
+        if not isinstance(customer_id, int):
+            return Response({
+                'status': 'error',
+                'message': 'Invalid customer ID format. Please provide a numeric ID.'
+            }, status=400)
+
+        # Check if the card exists
+        card = LibraryCard.objects.filter(customer_id=customer_id).first()
+        if not card:
+            return Response({
+                'status': 'error',
+                'message': 'No library card found for this customer ID.'
+            }, status=404)
+
+        # Renew the card
         card.renew()
-        return Response({'status': 'success', 'message': 'Library card renewed successfully.'})
+        card.save()
+        return Response({
+            'status': 'success',
+            'message': 'Library card renewed successfully.'
+        })
     except Exception as e:
-        return Response({'status': 'error', 'message': str(e)}, status=500)
+        return Response({
+            'status': 'error',
+            'message': f"An unexpected error occurred: {str(e)}"
+        }, status=500)
 
 @api_view(['GET'])
 def check_fines(request, customer_id):
@@ -172,83 +211,66 @@ def check_out_item(request, customer_id):
 @api_view(['POST'])
 def check_in_item(request):
     try:
-        # Ensure the 'item_ids' key exists in the request data and is a list
         item_ids = request.data.get('item_ids', [])
 
         if not isinstance(item_ids, list):
             return Response({'status': 'error', 'message': 'Item IDs must be a list.'}, status=400)
 
         checked_in_items = []
+        not_checked_out_items = []
         not_found_items = []
 
         for item_id in item_ids:
             try:
-                item_id = int(item_id)  # Convert to integer if needed
+                item_id = int(item_id)
             except ValueError:
                 not_found_items.append(item_id)
                 continue
 
-            # Check if the item is checked out and not yet returned
             check_out_record = CheckOut.objects.filter(item_id=item_id, returned=False).first()
             if check_out_record:
-                # Mark the item as returned
                 check_out_record.returned = True
                 check_out_record.save()
 
-                # Create a CheckIn record
                 return_date = datetime.today().date()
-                check_in = CheckIn.objects.create(
+                late_fees = 0.0
+
+                if return_date > check_out_record.due_date:
+                    late_days = (return_date - check_out_record.due_date).days
+                    late_fees = late_days * 1.5
+                    Fines.objects.create(
+                        amount=late_fees,
+                        paid=False,
+                        customer=check_out_record.customer
+                    )
+
+                CheckIn.objects.create(
                     item=check_out_record.item,
                     customer=check_out_record.customer,
                     return_date=return_date,
+                    late_fees=late_fees
                 )
-
-                late_fees = 0.0
-                late_fees_message = None
-
-                # Calculate late fees if applicable
-                if return_date > check_out_record.due_date:
-                    late_days = (return_date - check_out_record.due_date).days
-                    late_fees = late_days * 1.5  # Assuming $1.5 per late day
-                    check_in.late_fees = late_fees
-                    check_in.save()
-
-                    # Record the fine in the Fines table
-                    try:
-                        fine = Fines.objects.create(
-                            amount=late_fees,
-                            paid=False,
-                            customer=check_out_record.customer
-                        )
-                        print(f"Fine created: {fine}")  # Debugging statement
-                    except Exception as fine_error:
-                        print(f"Error creating fine: {fine_error}")
-
-                    late_fees_message = (
-                        f"Item {item_id} was returned after the due date. "
-                        f"Late fees of ${late_fees:.2f} have been applied."
-                    )
 
                 checked_in_items.append({
                     "item_id": item_id,
-                    "late_fees": late_fees,
-                    "message": late_fees_message
+                    "late_fees": late_fees
                 })
             else:
-                not_found_items.append(item_id)
+                not_checked_out_items.append(item_id)
 
-        # Return a summary of the operation
         return Response({
             'status': 'success',
             'checked_in_items': checked_in_items,
+            'not_checked_out_items': not_checked_out_items,
             'not_found_items': not_found_items
         }, status=200)
 
     except Exception as e:
-        # Handle unexpected errors
-        return Response({'status': 'error', 'message': str(e)}, status=500)
+        return Response({'status': 'error', 'message': f'Unexpected error: {str(e)}'}, status=500)
 
 # Reserve an item if it's available for checkout
+
+
 @api_view(['POST'])
 def reserve_item(request, customer_id):
     try:
@@ -283,6 +305,31 @@ def reserve_item(request, customer_id):
         })
     except Exception as e:
         return Response({'status': 'error', 'message': str(e)}, status=500)
+
+@api_view(['POST'])
+def notify_next_customer(request, item_id):
+    try:
+        # Get the next customer in the reservation queue
+        reservation = Reservation.objects.filter(item_id=item_id, is_active=True, notification_status='Pending').order_by('queue_position').first()
+
+        if reservation:
+            reservation.notification_status = 'Notified'
+            reservation.notified_on = datetime.today().date()
+            reservation.notification_deadline = datetime.today().date() + timedelta(days=5)
+            reservation.save()
+
+            return Response({
+                'status': 'success',
+                'message': f"Customer {reservation.customer.customer_id} notified. They have until {reservation.notification_deadline} to pick up the item."
+            })
+
+        return Response({'status': 'success', 'message': 'No active reservations in the queue.'})
+    except Exception as e:
+        return Response({'status': 'error', 'message': str(e)}, status=500)
+
+
+
+
 
 @api_view(['POST'])
 def notify_next_customer(request, item_id):
@@ -443,3 +490,100 @@ def get_patron_loans(request, patron_id):
         return Response(loans, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+@api_view(['GET'])
+def fetch_borrowed_books(request, customer_id):
+    try:
+        checkouts = CheckOut.objects.filter(customer_id=customer_id, returned=False)
+        if not checkouts.exists():
+            return Response({
+                'status': 'error',
+                'message': 'No borrowed books found for this customer.'
+            }, status=404)
+
+        borrowed_books = [
+            {
+                'book_id': checkout.item.item_id,
+                'title': checkout.item.title,
+                'due_date': checkout.due_date.strftime('%Y-%m-%d'),
+                'renewal_count': checkout.renewal_count,
+                'reserved': Reservation.objects.filter(
+                    item_id=checkout.item.item_id,
+                    status='Reserved',
+                    is_active=True
+                ).exists()
+            }
+            for checkout in checkouts
+        ]
+
+        return Response({
+            'status': 'success',
+            'borrowed_books': borrowed_books
+        }, status=200)
+
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': f"An error occurred: {str(e)}"
+        }, status=500)
+
+@api_view(['POST'])
+def renew_books(request):
+    try:
+        customer_id = request.data.get('customer_id')
+        book_ids = request.data.get('book_ids', [])
+        
+        if not customer_id or not book_ids:
+            return Response({
+                'status': 'error',
+                'message': 'Customer ID and book IDs are required.'
+            }, status=400)
+
+        # Fetch all eligible checkouts
+        checkouts = CheckOut.objects.filter(
+            customer_id=customer_id,
+            item_id__in=book_ids,
+            returned=False
+        )
+
+        if not checkouts.exists():
+            return Response({
+                'status': 'error',
+                'message': 'No eligible books found for renewal.'
+            }, status=404)
+
+        renewed_books = []
+        for checkout in checkouts:
+            if Reservation.objects.filter(item_id=checkout.item.item_id, status='Reserved', is_active=True).exists():
+                continue  # Skip reserved books
+            if checkout.renewal_count >= 3:
+                continue  # Skip books that have reached the renewal limit
+
+            checkout.renew()
+            renewed_books.append({
+                'book_id': checkout.item.item_id,
+                'title': checkout.item.title,
+                'new_due_date': checkout.due_date.strftime('%Y-%m-%d'),
+                'renewal_count': checkout.renewal_count
+            })
+
+        if not renewed_books:
+            return Response({
+                'status': 'error',
+                'message': 'No books were eligible for renewal.'
+            }, status=400)
+
+        return Response({
+            'status': 'success',
+            'renewed_books': renewed_books
+        }, status=200)
+
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': f"An unexpected error occurred: {str(e)}"
+        }, status=500)

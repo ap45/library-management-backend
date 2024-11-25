@@ -1,6 +1,6 @@
 
 
-from apps.books.views import check_out_item,check_fines, get_patrons_with_cards,get_patron_loans,check_library_card, item_list,renew_library_card,pay_fines,check_in_item,reserve_item,notify_next_customer,get_reservation_status
+from apps.books.views import check_out_item,check_fines, get_patrons_with_cards,fetch_borrowed_books,renew_books,get_patron_loans,check_library_card, item_list,renew_library_card,pay_fines,check_in_item,reserve_item,notify_next_customer,get_reservation_status
 from django.urls import path, include, re_path
 from django.http import HttpResponse
 from django.views.generic import TemplateView
@@ -27,6 +27,9 @@ urlpatterns = [
     path('api/items/', item_list, name='item_list'),
     path('api/patrons/', get_patrons_with_cards, name='get_patrons_with_cards'),
     path('api/bookcheckouts/<int:patron_id>/', get_patron_loans, name='get_patron_loans'),
+
+    path('api/borrowed_books/<int:customer_id>/', fetch_borrowed_books, name='borrowed_books'),
+    path('api/renew_books/', renew_books, name='renew_books'),  
 
 
 
